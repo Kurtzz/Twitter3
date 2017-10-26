@@ -11,4 +11,23 @@
     <artifactId>twitter-data</artifactId>
     <packaging>jar</packaging>
 
+    <dependencies>
+        <!-- SPRING -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
+
+        <!-- TWITTER -->
+        <dependency>
+            <groupId>org.twitter4j</groupId>
+            <artifactId>twitter4j-stream</artifactId>
+            <version>${twitter.version}</version>
+        </dependency>
+    </dependencies>
+
 </project>
