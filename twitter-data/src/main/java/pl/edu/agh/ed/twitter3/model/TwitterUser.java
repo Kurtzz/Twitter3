@@ -2,18 +2,43 @@ package pl.edu.agh.ed.twitter3.model;
 
 import twitter4j.User;
 
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.Id;
+import javax.persistence.Table;
 import java.util.Date;
 
+@Entity
+@Table(name = "TWITTER_USER")
 public class TwitterUser {
+    @Id @Column(name = "ID")
     private long id;
+
+    @Column(name = "NAME")
     private String name;
+
+    @Column(name = "SCREEN_NAME")
     private String screenName;
+
+    @Column(name = "CREATED_AT")
     private Date createdAt;
+
+    @Column(name = "IS_VERIFIED")
     private boolean isVerified;
-    private String getLocation;
+
+    @Column(name = "LOCATION")
+    private String location;
+
+    @Column(name = "FOLLOWERS_COUNT")
     private int followersCount;
+
+    @Column(name = "FRIENDS_COUNT")
     private int friendsCount;
+
+    @Column(name = "FAVOURITES_COUNT")
     private int favouritesCount;
+
+    @Column(name = "STATUSES_COUNT")
     private int statusesCount;
 
     public TwitterUser() {
@@ -25,7 +50,7 @@ public class TwitterUser {
         this.screenName = user.getScreenName();
         this.createdAt = user.getCreatedAt();
         this.isVerified = user.isVerified();
-        this.getLocation = user.getLocation();
+        this.location = user.getLocation();
         this.followersCount = user.getFollowersCount();
         this.friendsCount = user.getFriendsCount();
         this.favouritesCount = user.getFavouritesCount();
@@ -72,12 +97,12 @@ public class TwitterUser {
         isVerified = verified;
     }
 
-    public String getGetLocation() {
-        return getLocation;
+    public String getLocation() {
+        return location;
     }
 
-    public void setGetLocation(String getLocation) {
-        this.getLocation = getLocation;
+    public void setLocation(String location) {
+        this.location = location;
     }
 
     public int getFollowersCount() {

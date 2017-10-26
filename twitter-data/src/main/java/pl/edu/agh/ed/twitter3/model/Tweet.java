@@ -2,16 +2,35 @@ package pl.edu.agh.ed.twitter3.model;
 
 import twitter4j.Status;
 
+import javax.persistence.*;
 import java.util.Date;
 
+@Entity
+@Table(name = "TWEET")
 public class Tweet {
+    @Id @Column(name = "ID")
     private long id;
+
+    @Column(name = "TEXT")
     private String text;
+
+    @ManyToOne(fetch= FetchType.LAZY)
+    @JoinColumn(name="TWITTER_USER_ID", foreignKey = @ForeignKey(name = "TWITTER_USER_ID"))
     private TwitterUser twitterUser;
+
+    @Column(name = "CREATED_AT")
     private Date createdAt;
+
+    @Column(name = "LANG")
     private String lang;
+
+    @Column(name = "FAVORITE_COUNT")
     private int favoriteCount;
+
+    @Column(name = "RETWEET_COUNT")
     private int retweetCount;
+
+    @Column(name = "SOURCE")
     private String source; //TODO: necessary?
 
     public Tweet() {
