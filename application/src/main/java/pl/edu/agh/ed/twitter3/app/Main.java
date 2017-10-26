@@ -14,11 +14,16 @@ public class Main {
         ApplicationContext context = new AnnotationConfigApplicationContext(AppConfig.class);
         Twitter twitter = context.getBean(Twitter.class);
         TweetRepository repository = context.getBean(TweetRepository.class);
+        int tweetsNumber = 5000;
 
         Query query = new Query("demo");
-        query.setCount(10);
+        query.setCount(100);
         QueryResult queryResult = twitter.search(query);
-
         repository.save(queryResult.getTweets().stream().map(Tweet::new).collect(Collectors.toList()));
+
+        while (queryResult.hasNext() && repository.count() < tweetsNumber) {
+            queryResult = twitter.search(queryResult.nextQuery());
+            repository.save(queryResult.getTweets().stream().map(Tweet::new).collect(Collectors.toList()));
+        }
     }
 }
