@@ -1,8 +1,10 @@
 package pl.edu.agh.ed.twitter3.config;
 
+import org.flywaydb.core.Flyway;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -30,6 +32,17 @@ public class DatabaseConfig {
         this.hibernateProperties = hibernateProperties;
     }
 
+    @Bean(initMethod = "migrate")
+    public Flyway flyway(DataSource dataSource) {
+        Flyway flyway = new Flyway();
+        flyway.setDataSource(dataSource);
+        flyway.setBaselineOnMigrate(true);
+        flyway.setOutOfOrder(true);
+        flyway.setLocations("filesystem:migrations");
+
+        return flyway;
+    }
+
     @Bean
     public static PropertySourcesPlaceholderConfigurer propertySourcesPlaceholderConfigurer() {
         return new PropertySourcesPlaceholderConfigurer();
@@ -55,7 +68,7 @@ public class DatabaseConfig {
         return properties;
     }
 
-    @Bean
+    @Bean @DependsOn("flyway")
     public LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
         LocalContainerEntityManagerFactoryBean factory = new LocalContainerEntityManagerFactoryBean();
 
