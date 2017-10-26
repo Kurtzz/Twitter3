@@ -10,6 +10,7 @@
     <modules>
         <module>twitter-data</module>
         <module>stanford-corenlp-server</module>
+        <module>twitter-service</module>
     </modules>
     <packaging>pom</packaging>
 
