@@ -67,6 +67,10 @@ public class DatabaseConfig {
         properties.put("hibernate.dialect", hibernateProperties.getDialect());
         properties.put("hibernate.show_sql", hibernateProperties.getShowSql());
         properties.put("hibernate.hbm2ddl.auto", hibernateProperties.getHbm2dllAuto());
+        properties.put("hibernate.connection.CharSet", "utf8mb4");
+        properties.put("hibernate.connection.characterEncoding", "utf8mb4");
+        properties.put("hibernate.connection.useUnicode", "true");
+
         return properties;
     }
 

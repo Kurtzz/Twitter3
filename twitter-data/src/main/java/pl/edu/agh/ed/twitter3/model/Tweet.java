@@ -14,7 +14,7 @@ public class Tweet {
     @Column(name = "TEXT")
     private String text;
 
-    @ManyToOne(fetch= FetchType.LAZY)
+    @ManyToOne(fetch= FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name="TWITTER_USER_ID", foreignKey = @ForeignKey(name = "TWITTER_USER_ID"))
     private TwitterUser twitterUser;
 
