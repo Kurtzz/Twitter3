@@ -41,6 +41,10 @@ public class Tweet {
     @JoinColumn(name = "QUOTED_TWEET_ID", referencedColumnName = "ID")
     private Tweet quotedTweet;
 
+    @ManyToOne(cascade = {CascadeType.PERSIST})
+    @JoinColumn(name = "IN_REPLY_TO_TWEET_ID", referencedColumnName = "ID")
+    private Tweet inReplyToTweet;
+
     public Tweet() {
     }
 
@@ -133,6 +137,14 @@ public class Tweet {
 
     public void setQuotedTweet(Tweet quotedTweet) {
         this.quotedTweet = quotedTweet;
+    }
+
+    public Tweet getInReplyToTweet() {
+        return inReplyToTweet;
+    }
+
+    public void setInReplyToTweet(Tweet inReplyToTweet) {
+        this.inReplyToTweet = inReplyToTweet;
     }
 }
 
