@@ -8,6 +8,8 @@ import org.springframework.context.annotation.PropertySource;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import twitter4j.Twitter;
 import twitter4j.TwitterFactory;
+import twitter4j.TwitterStream;
+import twitter4j.TwitterStreamFactory;
 import twitter4j.conf.ConfigurationBuilder;
 
 @Configuration
@@ -23,7 +25,7 @@ public class TwitterConfig {
     }
 
     @Bean
-    public ConfigurationBuilder configurationBuilder() {
+    public twitter4j.conf.Configuration configuration() {
         ConfigurationBuilder configurationBuilder = new ConfigurationBuilder();
         configurationBuilder.setDebugEnabled(true)
                 .setOAuthConsumerKey(twitterProperties.getConsumerKey())
@@ -31,15 +33,17 @@ public class TwitterConfig {
                 .setOAuthAccessToken(twitterProperties.getAccessToken())
                 .setOAuthAccessTokenSecret(twitterProperties.getAccessTokenSecret());
 
-        return configurationBuilder;
+        return configurationBuilder.build();
     }
 
     @Bean
-    public Twitter twitter(ConfigurationBuilder configurationBuilder) {
-        TwitterFactory twitterFactory = new TwitterFactory(configurationBuilder.build());
-        Twitter twitter = twitterFactory.getInstance();
+    public Twitter twitter(twitter4j.conf.Configuration configuration) {
+        return new TwitterFactory(configuration).getInstance();
+    }
 
-        return twitter;
+    @Bean
+    public TwitterStream twitterStream(twitter4j.conf.Configuration configuration) {
+        return new TwitterStreamFactory(configuration).getInstance();
     }
 
     @Bean
