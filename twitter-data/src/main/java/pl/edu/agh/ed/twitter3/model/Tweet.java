@@ -33,6 +33,14 @@ public class Tweet {
     @Column(name = "SOURCE")
     private String source; //TODO: necessary?
 
+    @ManyToOne(cascade = {CascadeType.PERSIST})
+    @JoinColumn(name = "RETWEETED_TWEET_ID", referencedColumnName = "ID")
+    private Tweet retweetedTweet;
+
+    @ManyToOne(cascade = {CascadeType.PERSIST})
+    @JoinColumn(name = "QUOTED_TWEET_ID", referencedColumnName = "ID")
+    private Tweet quotedTweet;
+
     public Tweet() {
     }
 
@@ -109,6 +117,22 @@ public class Tweet {
 
     public void setSource(String source) {
         this.source = source;
+    }
+
+    public Tweet getRetweetedTweet() {
+        return retweetedTweet;
+    }
+
+    public void setRetweetedTweet(Tweet retweetedTweet) {
+        this.retweetedTweet = retweetedTweet;
+    }
+
+    public Tweet getQuotedTweet() {
+        return quotedTweet;
+    }
+
+    public void setQuotedTweet(Tweet quotedTweet) {
+        this.quotedTweet = quotedTweet;
     }
 }
 
