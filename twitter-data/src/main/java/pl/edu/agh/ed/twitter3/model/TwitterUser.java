@@ -2,11 +2,10 @@ package pl.edu.agh.ed.twitter3.model;
 
 import twitter4j.User;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.Id;
-import javax.persistence.Table;
+import javax.persistence.*;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "TWITTER_USER")
@@ -41,10 +40,23 @@ public class TwitterUser {
     @Column(name = "STATUSES_COUNT")
     private int statusesCount;
 
+    @ManyToMany(cascade = CascadeType.PERSIST, fetch = FetchType.EAGER)
+    @JoinTable(name = "FOLLOW",
+            joinColumns = @JoinColumn(name = "FOLLOWING_ID", referencedColumnName = "ID"),
+            inverseJoinColumns = @JoinColumn(name = "FOLLOWED_ID", referencedColumnName = "ID")
+    )
+    private Set<TwitterUser> following;
+
+    @ManyToMany(mappedBy = "following", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    private Set<TwitterUser> followedBy;
+
     public TwitterUser() {
+        followedBy = new HashSet<>();
+        following = new HashSet<>();
     }
 
     public TwitterUser(User user) {
+        this();
         this.id = user.getId();
         this.name = user.getName();
         this.screenName = user.getScreenName();
@@ -135,5 +147,30 @@ public class TwitterUser {
 
     public void setStatusesCount(int statusesCount) {
         this.statusesCount = statusesCount;
+    }
+
+    public Set<TwitterUser> getFollowedBy() {
+        return followedBy;
+    }
+
+    public void setFollowedBy(Set<TwitterUser> followedBy) {
+        this.followedBy = followedBy;
+    }
+
+    public void addFollowedBy(TwitterUser followed) {
+        this.followedBy.add(followed);
+        followed.addFollowing(this);
+    }
+
+    public Set<TwitterUser> getFollowing() {
+        return following;
+    }
+
+    public void setFollowing(Set<TwitterUser> following) {
+        this.following = following;
+    }
+
+    public void addFollowing(TwitterUser folowing) {
+        this.following.add(folowing);
     }
 }
