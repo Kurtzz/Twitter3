@@ -4,7 +4,7 @@ import twitter4j.User;
 
 import javax.persistence.*;
 import java.util.Date;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 @Entity
@@ -40,23 +40,20 @@ public class TwitterUser {
     @Column(name = "STATUSES_COUNT")
     private int statusesCount;
 
-    @ManyToMany(cascade = CascadeType.PERSIST, fetch = FetchType.EAGER)
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "FOLLOW",
             joinColumns = @JoinColumn(name = "FOLLOWING_ID", referencedColumnName = "ID"),
             inverseJoinColumns = @JoinColumn(name = "FOLLOWED_ID", referencedColumnName = "ID")
     )
-    private Set<TwitterUser> following;
+    private Set<TwitterUser> following = new LinkedHashSet<>();
 
-    @ManyToMany(mappedBy = "following", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
-    private Set<TwitterUser> followedBy;
+    @ManyToMany(mappedBy = "following", fetch = FetchType.EAGER)
+    private Set<TwitterUser> followedBy = new LinkedHashSet<>();
 
     public TwitterUser() {
-        followedBy = new HashSet<>();
-        following = new HashSet<>();
     }
 
     public TwitterUser(User user) {
-        this();
         this.id = user.getId();
         this.name = user.getName();
         this.screenName = user.getScreenName();
@@ -159,7 +156,6 @@ public class TwitterUser {
 
     public void addFollowedBy(TwitterUser followed) {
         this.followedBy.add(followed);
-        followed.addFollowing(this);
     }
 
     public Set<TwitterUser> getFollowing() {
