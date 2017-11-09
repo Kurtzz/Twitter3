@@ -1,9 +1,11 @@
 package pl.edu.agh.ed.twitter3.model;
 
+import twitter4j.HashtagEntity;
 import twitter4j.Status;
 
 import javax.persistence.*;
-import java.util.Date;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Entity
 @Table(name = "TWEET")
@@ -44,6 +46,20 @@ public class Tweet {
     @ManyToOne(cascade = {CascadeType.PERSIST})
     @JoinColumn(name = "IN_REPLY_TO_TWEET_ID", referencedColumnName = "ID")
     private Tweet inReplyToTweet;
+
+    @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(name = "TWEET_HASHTAGS",
+            joinColumns = @JoinColumn(name = "TWEET_ID", referencedColumnName = "ID"),
+            inverseJoinColumns = @JoinColumn(name = "HASHTAG_ID", referencedColumnName = "ID")
+    )
+    private Set<Hashtag> hashtags = new HashSet<>();
+
+    @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(name = "TWEET_USER_MENTIONS",
+            joinColumns = @JoinColumn(name = "TWEET_ID", referencedColumnName = "ID"),
+            inverseJoinColumns = @JoinColumn(name = "USER_ID", referencedColumnName = "ID")
+    )
+    private Set<TwitterUser> userMentions = new HashSet<>();
 
     public Tweet() {
     }
@@ -145,6 +161,22 @@ public class Tweet {
 
     public void setInReplyToTweet(Tweet inReplyToTweet) {
         this.inReplyToTweet = inReplyToTweet;
+    }
+
+    public Set<Hashtag> getHashtags() {
+        return hashtags;
+    }
+
+    public void setHashtags(Set<Hashtag> hashtags) {
+        this.hashtags = hashtags;
+    }
+
+    public Set<TwitterUser> getUserMentions() {
+        return userMentions;
+    }
+
+    public void setUserMentions(Set<TwitterUser> userMentions) {
+        this.userMentions = userMentions;
     }
 }
 
