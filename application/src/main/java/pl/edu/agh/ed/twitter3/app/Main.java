@@ -12,6 +12,7 @@ import pl.edu.agh.ed.twitter3.repository.TwitterUserRepository;
 import twitter4j.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class Main {
     private static Twitter twitter;
@@ -22,6 +23,7 @@ public class Main {
 
     public static void main(String[] args) throws TwitterException, InterruptedException {
         ApplicationContext context = new AnnotationConfigApplicationContext(AppConfig.class);
+        TwitterStream twitterStream = context.getBean(TwitterStream.class);
         twitter = context.getBean(Twitter.class);
 
         tweetRepository = context.getBean(TweetRepository.class);
@@ -33,13 +35,12 @@ public class Main {
         Query query = new Query("" +
                 "(northkorea) OR " +
                 "(dprk) OR " +
-                "(north korea) OR " +
-                "(ww3) OR " +
-                "(world war 3)"
+                "(ww3)"
         )
                 .count(100)
                 .lang("en")
                 .since("2017-11-20");
+//                .maxId(936048518787162115L);
 
         QueryResult result = tweetSearchWithLimit(query); // searchWithRetry is my function that deals with rate limits
 
@@ -55,16 +56,18 @@ public class Main {
 
                 tweetsProcessed++;
 
-                if(tweetsProcessed % 100 == 0) {
+                if (tweetsProcessed % 100 == 0) {
                     System.out.println(tweetsProcessed);
                 }
             }
             query.setMaxId(minId - 1);
             result = tweetSearchWithLimit(query);
         }
+
+
     }
 
-    private static void processAndSaveTweet(Status status) {
+    private static void processAndSaveTweet(Status status) throws TwitterException, InterruptedException {
         Tweet tweet = new Tweet(status);
 
         TwitterUser twitterUser = saveUser(status);
@@ -73,6 +76,8 @@ public class Main {
         updateHashtags(status, tweet);
         updateUserMentions(status, tweet);
 
+//        Iterable<Tweet> extraTweets = handleRetweetsAndQuotes(status, tweet);
+//        tweetRepository.save(extraTweets);
         tweetRepository.save(tweet);
     }
 
@@ -145,12 +150,8 @@ public class Main {
         try {
             user = twitter.showUser(userId);
         } catch (TwitterException e) {
-            if(e.exceededRateLimitation()) {
-                waitForLimitRenew(e);
-                user = getUserWithLimit(userId);
-            } else {
-                e.printStackTrace();
-            }
+            waitForLimitRenew(e);
+            user = getUserWithLimit(userId);
         }
 
         return user;
@@ -202,45 +203,65 @@ public class Main {
 //        twitterUserRepository.save(twitterUser);
     }
 
-//    public static List<Status> findReplies(String screenName, long tweetId) throws TwitterException {
-//        Query query = new Query("to:" + screenName + " since_id:" + tweetId);
-//        query.count(100);
-//        QueryResult results = tweetSearchWithLimit(query);
-//        List<Status> tweets = results.getTweets();
-//
-//        return tweets.stream().filter(tweet -> tweet.getInReplyToStatusId() == tweetId).collect(Collectors.toList());
-//    }
+    public static List<Status> findReplies(String screenName, long tweetId) throws TwitterException, InterruptedException {
+        Query query = new Query("to:" + screenName + " since_id:" + tweetId);
+        query.count(100);
+        QueryResult results = tweetSearchWithLimit(query);
+        List<Status> tweets = results.getTweets();
 
-//    public static Iterable<Tweet> prepareTweets(List<Status> statuses) {
-//        return statuses.stream()
-//                .map(status -> {
-//                    Tweet newTweet = new Tweet(status);
-//                    Status reetweetedStatus = status.getRetweetedStatus();
-//                    Status quatedStatus = status.getQuotedStatus();
-//                    List<Tweet> tweets = new ArrayList<>(3);
-//                    try {
-//                        tweets = findReplies(status.getUserWithLimit().getScreenName(), status.getId())
-//                                .stream().map(Tweet::new).peek(tweet -> tweet.setInReplyToTweet(newTweet)).collect(Collectors.toList());
-//                    } catch (TwitterException e) {
-//                        e.printStackTrace();
-//                    }
-//                    if (reetweetedStatus != null) {
-//                        Tweet reetweetedTweet = new Tweet(reetweetedStatus);
-//                        newTweet.setRetweetedTweet(reetweetedTweet);
-//                        tweets.add(reetweetedTweet);
-//                    }
-//                    if (quatedStatus != null) {
-//                        Tweet quotedTweet = new Tweet(quatedStatus);
-//                        newTweet.setQuotedTweet(quotedTweet);
-//                        tweets.add(quotedTweet);
-//                    }
-//                    tweets.add(newTweet);
-//
-//
-//                    System.out.println(tweets);
-//                    return tweets;
-//                })
-//                .flatMap(List::stream)
-//                .collect(Collectors.toList());
-//    }
+        return tweets.stream()
+                .filter(tweet -> tweet.getInReplyToStatusId() == tweetId)
+                .collect(Collectors.toList());
+    }
+
+    public static Iterable<Tweet> handleRetweetsAndQuotes(Status status, Tweet mainTweet) throws InterruptedException, TwitterException {
+        Status reetweetedStatus = status.getRetweetedStatus();
+        Status quatedStatus = status.getQuotedStatus();
+
+        List<Tweet> extraTweets;
+        extraTweets = findReplies(status.getUser().getScreenName(), status.getId())
+                .stream()
+                .map(replyStatus -> {
+                    Tweet replyTweet = new Tweet(replyStatus);
+
+                    TwitterUser twitterUser = saveUser(replyStatus);
+                    replyTweet.setTwitterUser(twitterUser);
+
+                    updateHashtags(replyStatus, replyTweet);
+                    updateUserMentions(replyStatus, replyTweet);
+
+                    return replyTweet;
+                })
+                .peek(tweet -> tweet.setInReplyToTweet(mainTweet))
+                .collect(Collectors.toList());
+
+        if (reetweetedStatus != null) {
+            Tweet reetweetedTweet = new Tweet(reetweetedStatus);
+
+            TwitterUser twitterUser = saveUser(reetweetedStatus);
+            reetweetedTweet.setTwitterUser(twitterUser);
+
+            updateHashtags(reetweetedStatus, reetweetedTweet);
+            updateUserMentions(reetweetedStatus, reetweetedTweet);
+
+            mainTweet.setRetweetedTweet(reetweetedTweet);
+            extraTweets.add(reetweetedTweet);
+        }
+        if (quatedStatus != null) {
+            Tweet quotedTweet = new Tweet(quatedStatus);
+
+            TwitterUser twitterUser = saveUser(quatedStatus);
+            quotedTweet.setTwitterUser(twitterUser);
+
+            updateHashtags(quatedStatus, quotedTweet);
+            updateUserMentions(quatedStatus, quotedTweet);
+
+            mainTweet.setQuotedTweet(quotedTweet);
+            extraTweets.add(quotedTweet);
+        }
+        extraTweets.add(mainTweet);
+
+
+        return extraTweets;
+    }
 }
