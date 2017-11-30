@@ -11,7 +11,7 @@ import java.util.Set;
 @Table(name = "HASHTAG")
 public class Hashtag {
     @Id
-    @GeneratedValue
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
 
     @Column(name = "TEXT")

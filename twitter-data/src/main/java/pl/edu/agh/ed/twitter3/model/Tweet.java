@@ -32,9 +32,6 @@ public class Tweet {
     @Column(name = "RETWEET_COUNT")
     private int retweetCount;
 
-    @Column(name = "SOURCE")
-    private String source; //TODO: necessary?
-
     @ManyToOne(cascade = {CascadeType.PERSIST})
     @JoinColumn(name = "RETWEETED_TWEET_ID", referencedColumnName = "ID")
     private Tweet retweetedTweet;
@@ -54,7 +51,7 @@ public class Tweet {
     )
     private Set<Hashtag> hashtags = new HashSet<>();
 
-    @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST})
     @JoinTable(name = "TWEET_USER_MENTIONS",
             joinColumns = @JoinColumn(name = "TWEET_ID", referencedColumnName = "ID"),
             inverseJoinColumns = @JoinColumn(name = "USER_ID", referencedColumnName = "ID")
@@ -66,13 +63,22 @@ public class Tweet {
 
     public Tweet(Status status) {
         this.id = status.getId();
-        this.text = status.getText();
-        this.twitterUser = new TwitterUser(status.getUser());
+        this.text = removeIllegalChars(status.getText());
+//        this.twitterUser = new TwitterUser(status.getUser());
         this.createdAt = status.getCreatedAt();
         this.lang = status.getLang();
         this.favoriteCount = status.getFavoriteCount();
         this.retweetCount = status.getRetweetCount();
-        this.source = status.getSource();
+    }
+
+    public String removeIllegalChars(String s) {
+        if (s == null) return null;
+        StringBuilder sb = new StringBuilder();
+        for(int i = 0 ; i < s.length() ; i++){
+            if (Character.isHighSurrogate(s.charAt(i))) continue;
+            sb.append(s.charAt(i));
+        }
+        return sb.toString();
     }
 
     public long getId() {
@@ -129,14 +135,6 @@ public class Tweet {
 
     public void setRetweetCount(int retweetCount) {
         this.retweetCount = retweetCount;
-    }
-
-    public String getSource() {
-        return source;
-    }
-
-    public void setSource(String source) {
-        this.source = source;
     }
 
     public Tweet getRetweetedTweet() {

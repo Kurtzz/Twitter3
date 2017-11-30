@@ -11,9 +11,7 @@ import pl.edu.agh.ed.twitter3.repository.TweetRepository;
 import pl.edu.agh.ed.twitter3.repository.TwitterUserRepository;
 import twitter4j.*;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class Main {
     private static Twitter twitter;
@@ -22,95 +20,146 @@ public class Main {
     private static HashtagRepository hashtagRepository;
 
 
-    public static void main(String[] args) throws TwitterException {
+    public static void main(String[] args) throws TwitterException, InterruptedException {
         ApplicationContext context = new AnnotationConfigApplicationContext(AppConfig.class);
-        TwitterStream twitterStream = context.getBean(TwitterStream.class);
         twitter = context.getBean(Twitter.class);
 
         tweetRepository = context.getBean(TweetRepository.class);
         twitterUserRepository = context.getBean(TwitterUserRepository.class);
         hashtagRepository = context.getBean(HashtagRepository.class);
 
-        FilterQuery query = new FilterQuery("northkorea", "ww3", "nuclear", "world war 3");
-        query.language("en");
+        int tweetsProcessed = 0;
 
-        twitterStream.addListener(new StatusListener() {
-            @Override
-            public void onException(Exception e) {
+        Query query = new Query("" +
+                "(northkorea) OR " +
+                "(dprk) OR " +
+                "(north korea) OR " +
+                "(ww3) OR " +
+                "(world war 3)"
+        )
+                .count(100)
+                .lang("en")
+                .since("2017-11-20");
 
-            }
+        QueryResult result = tweetSearchWithLimit(query); // searchWithRetry is my function that deals with rate limits
 
-            public void onStatus(Status status) {
-                User user = status.getUser();
-                TwitterUser twitterUser;
+        while (result.getTweets().size() != 0) {
+            List<Status> tweets = result.getTweets();
+            Long minId = Long.MAX_VALUE;
 
-                twitterUser = twitterUserRepository.findOne(user.getId());
-                if (twitterUser == null) {
-                    twitterUser = new TwitterUser(user);
+            for (Status tweet : tweets) {
+                processAndSaveTweet(tweet);
 
-//                                        try {
-//                                            followStaff(twitterUser, "FOLLOWERS");
-//                                            followStaff(twitterUser, "FRIENDS");
-//
-//                                        } catch (TwitterException e) {
-//                                            e.printStackTrace();
-//                                        }
+                if (tweet.getId() < minId)
+                    minId = tweet.getId();
 
-                    twitterUser = twitterUserRepository.save(twitterUser);
+                tweetsProcessed++;
+
+                if(tweetsProcessed % 100 == 0) {
+                    System.out.println(tweetsProcessed);
                 }
-
-                Tweet tweet = new Tweet(status);
-
-                for (HashtagEntity hashtagEntity : status.getHashtagEntities()) {
-                    Hashtag hashtag = updateAngGetHashtag(hashtagEntity);
-                    tweet.getHashtags().add(hashtag);
-                }
-
-                for (UserMentionEntity userMentionEntity : status.getUserMentionEntities()) {
-                    TwitterUser mentionedUser = null;
-                    try {
-                        mentionedUser = updateAndGetUser(userMentionEntity);
-                    } catch (TwitterException e) {
-                        e.printStackTrace();
-                    }
-                    tweet.getUserMentions().add(mentionedUser);
-                }
-
-                tweetRepository.save(tweet);
-//              tweetRepository.save(prepareTweets(Collections.singletonList(status)));
             }
-
-            @Override
-            public void onDeletionNotice(StatusDeletionNotice statusDeletionNotice) {
-
-            }
-
-            @Override
-            public void onTrackLimitationNotice(int i) {
-
-            }
-
-            @Override
-            public void onScrubGeo(long l, long l1) {
-
-            }
-
-            @Override
-            public void onStallWarning(StallWarning stallWarning) {
-
-            }
-        });
-
-        twitterStream.filter(query);
+            query.setMaxId(minId - 1);
+            result = tweetSearchWithLimit(query);
+        }
     }
 
-    private static TwitterUser updateAndGetUser(UserMentionEntity userMentionEntity) throws TwitterException {
+    private static void processAndSaveTweet(Status status) {
+        Tweet tweet = new Tweet(status);
+
+        TwitterUser twitterUser = saveUser(status);
+        tweet.setTwitterUser(twitterUser);
+
+        updateHashtags(status, tweet);
+        updateUserMentions(status, tweet);
+
+        tweetRepository.save(tweet);
+    }
+
+    private static void updateUserMentions(Status status, Tweet tweet) {
+        for (UserMentionEntity userMentionEntity : status.getUserMentionEntities()) {
+            TwitterUser mentionedUser = null;
+            try {
+                mentionedUser = updateAndGetUser(userMentionEntity);
+            } catch (TwitterException | InterruptedException e) {
+                e.printStackTrace();
+            }
+            tweet.getUserMentions().add(mentionedUser);
+        }
+    }
+
+    private static void updateHashtags(Status status, Tweet tweet) {
+        for (HashtagEntity hashtagEntity : status.getHashtagEntities()) {
+            Hashtag hashtag = updateAngGetHashtag(hashtagEntity);
+            tweet.getHashtags().add(hashtag);
+        }
+    }
+
+    private static TwitterUser saveUser(Status status) {
+        User user = status.getUser();
+        TwitterUser twitterUser;
+
+        twitterUser = twitterUserRepository.findOne(user.getId());
+        if (twitterUser == null) {
+            twitterUser = new TwitterUser(user);
+
+//            try {
+//                followStaff(twitterUser, "FOLLOWERS");
+//                followStaff(twitterUser, "FRIENDS");
+//
+//            } catch (TwitterException e) {
+//                e.printStackTrace();
+//            }
+
+            twitterUser = twitterUserRepository.save(twitterUser);
+        }
+        return twitterUser;
+    }
+
+    private static QueryResult tweetSearchWithLimit(Query query) throws InterruptedException {
+        QueryResult result;
+
+        try {
+            result = twitter.search(query);
+        } catch (TwitterException e) {
+            waitForLimitRenew(e);
+            result = tweetSearchWithLimit(query);
+        }
+
+        return result;
+    }
+
+    private static TwitterUser updateAndGetUser(UserMentionEntity userMentionEntity) throws TwitterException, InterruptedException {
         long userId = userMentionEntity.getId();
         TwitterUser user = twitterUserRepository.findOne(userId);
         if (user == null) {
-            user = new TwitterUser(twitter.showUser(userId));
+            user = new TwitterUser(getUserWithLimit(userId));
+            twitterUserRepository.save(user);
         }
         return user;
+    }
+
+    private static User getUserWithLimit(long userId) throws TwitterException, InterruptedException {
+        User user = null;
+
+        try {
+            user = twitter.showUser(userId);
+        } catch (TwitterException e) {
+            if(e.exceededRateLimitation()) {
+                waitForLimitRenew(e);
+                user = getUserWithLimit(userId);
+            } else {
+                e.printStackTrace();
+            }
+        }
+
+        return user;
+    }
+
+    private static void waitForLimitRenew(TwitterException e) throws InterruptedException {
+        int secondsUntilReset = e.getRateLimitStatus().getSecondsUntilReset() + 1;
+        System.out.println("Sleeping " + secondsUntilReset + " seconds...");
+        Thread.sleep(secondsUntilReset * 1000);
     }
 
     private static Hashtag updateAngGetHashtag(HashtagEntity hashtagEntity) {
@@ -153,45 +202,45 @@ public class Main {
 //        twitterUserRepository.save(twitterUser);
     }
 
-    public static List<Status> findReplies(String screenName, long tweetId) throws TwitterException {
-        Query query = new Query("to:" + screenName + " since_id:" + tweetId);
-        query.count(100);
-        QueryResult results = twitter.search(query);
-        List<Status> tweets = results.getTweets();
+//    public static List<Status> findReplies(String screenName, long tweetId) throws TwitterException {
+//        Query query = new Query("to:" + screenName + " since_id:" + tweetId);
+//        query.count(100);
+//        QueryResult results = tweetSearchWithLimit(query);
+//        List<Status> tweets = results.getTweets();
+//
+//        return tweets.stream().filter(tweet -> tweet.getInReplyToStatusId() == tweetId).collect(Collectors.toList());
+//    }
 
-        return tweets.stream().filter(tweet -> tweet.getInReplyToStatusId() == tweetId).collect(Collectors.toList());
-    }
-
-    public static Iterable<Tweet> prepareTweets(List<Status> statuses) {
-        return statuses.stream()
-                .map(status -> {
-                    Tweet newTweet = new Tweet(status);
-                    Status reetweetedStatus = status.getRetweetedStatus();
-                    Status quatedStatus = status.getQuotedStatus();
-                    List<Tweet> tweets = new ArrayList<>(3);
-                    try {
-                        tweets = findReplies(status.getUser().getScreenName(), status.getId())
-                                .stream().map(Tweet::new).peek(tweet -> tweet.setInReplyToTweet(newTweet)).collect(Collectors.toList());
-                    } catch (TwitterException e) {
-                        e.printStackTrace();
-                    }
-                    if (reetweetedStatus != null) {
-                        Tweet reetweetedTweet = new Tweet(reetweetedStatus);
-                        newTweet.setRetweetedTweet(reetweetedTweet);
-                        tweets.add(reetweetedTweet);
-                    }
-                    if (quatedStatus != null) {
-                        Tweet quotedTweet = new Tweet(quatedStatus);
-                        newTweet.setQuotedTweet(quotedTweet);
-                        tweets.add(quotedTweet);
-                    }
-                    tweets.add(newTweet);
-
-
-                    System.out.println(tweets);
-                    return tweets;
-                })
-                .flatMap(List::stream)
-                .collect(Collectors.toList());
-    }
+//    public static Iterable<Tweet> prepareTweets(List<Status> statuses) {
+//        return statuses.stream()
+//                .map(status -> {
+//                    Tweet newTweet = new Tweet(status);
+//                    Status reetweetedStatus = status.getRetweetedStatus();
+//                    Status quatedStatus = status.getQuotedStatus();
+//                    List<Tweet> tweets = new ArrayList<>(3);
+//                    try {
+//                        tweets = findReplies(status.getUserWithLimit().getScreenName(), status.getId())
+//                                .stream().map(Tweet::new).peek(tweet -> tweet.setInReplyToTweet(newTweet)).collect(Collectors.toList());
+//                    } catch (TwitterException e) {
+//                        e.printStackTrace();
+//                    }
+//                    if (reetweetedStatus != null) {
+//                        Tweet reetweetedTweet = new Tweet(reetweetedStatus);
+//                        newTweet.setRetweetedTweet(reetweetedTweet);
+//                        tweets.add(reetweetedTweet);
+//                    }
+//                    if (quatedStatus != null) {
+//                        Tweet quotedTweet = new Tweet(quatedStatus);
+//                        newTweet.setQuotedTweet(quotedTweet);
+//                        tweets.add(quotedTweet);
+//                    }
+//                    tweets.add(newTweet);
+//
+//
+//                    System.out.println(tweets);
+//                    return tweets;
+//                })
+//                .flatMap(List::stream)
+//                .collect(Collectors.toList());
+//    }
 }
