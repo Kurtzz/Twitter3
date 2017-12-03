@@ -63,23 +63,13 @@ public class Tweet {
 
     public Tweet(Status status) {
         this.id = status.getId();
-        this.text = removeIllegalChars(status.getText());
-//        this.twitterUser = new TwitterUser(status.getUser());
+        this.text = status.getText();
         this.createdAt = status.getCreatedAt();
         this.lang = status.getLang();
         this.favoriteCount = status.getFavoriteCount();
         this.retweetCount = status.getRetweetCount();
     }
 
-    public String removeIllegalChars(String s) {
-        if (s == null) return null;
-        StringBuilder sb = new StringBuilder();
-        for(int i = 0 ; i < s.length() ; i++){
-            if (Character.isHighSurrogate(s.charAt(i))) continue;
-            sb.append(s.charAt(i));
-        }
-        return sb.toString();
-    }
 
     public long getId() {
         return id;

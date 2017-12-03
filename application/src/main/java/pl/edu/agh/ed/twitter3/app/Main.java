@@ -11,9 +11,6 @@ import pl.edu.agh.ed.twitter3.repository.TweetRepository;
 import pl.edu.agh.ed.twitter3.repository.TwitterUserRepository;
 import twitter4j.*;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
 public class Main {
     private static Twitter twitter;
     private static TwitterUserRepository twitterUserRepository;
@@ -21,7 +18,13 @@ public class Main {
     private static HashtagRepository hashtagRepository;
 
 
-    public static void main(String[] args) throws TwitterException, InterruptedException {
+    static int tweetsSaved = 0;
+    static int usersSaved = 0;
+    static double totalWaitTime = 0.0;
+
+    private static long startTime = System.currentTimeMillis();
+
+    public static void main(String[] args) {
         ApplicationContext context = new AnnotationConfigApplicationContext(AppConfig.class);
         TwitterStream twitterStream = context.getBean(TwitterStream.class);
         twitter = context.getBean(Twitter.class);
@@ -30,54 +33,66 @@ public class Main {
         twitterUserRepository = context.getBean(TwitterUserRepository.class);
         hashtagRepository = context.getBean(HashtagRepository.class);
 
-        int tweetsProcessed = 0;
 
-        Query query = new Query("" +
-                "(northkorea) OR " +
-                "(dprk) OR " +
-                "(ww3)"
-        )
-                .count(100)
-                .lang("en")
-                .since("2017-11-20");
-//                .maxId(936048518787162115L);
+        FilterQuery query = new FilterQuery("north korea", "dprk", "northkorea", "nuclear war");
+        query.language("en");
 
-        QueryResult result = tweetSearchWithLimit(query); // searchWithRetry is my function that deals with rate limits
+        twitterStream.addListener(new StatusListener() {
+            @Override
+            public void onException(Exception e) {
 
-        while (result.getTweets().size() != 0) {
-            List<Status> tweets = result.getTweets();
-            Long minId = Long.MAX_VALUE;
+            }
 
-            for (Status tweet : tweets) {
-                processAndSaveTweet(tweet);
+            public void onStatus(Status status) {
+                try {
+                    if(tweetsSaved % 10 == 0) {
+                        System.out.println("Tweets saved " + tweetsSaved);
+                        System.out.println("Users saved " + usersSaved);
+                        System.out.println("Total wait time " + totalWaitTime + " min");
+                        long currentTime = System.currentTimeMillis();
+                        System.out.println("Program run time " + (double)(currentTime - startTime)/(1000.0*60.0) + " min");
+                        System.out.println("---------------------------------------------------------");
+                    }
 
-                if (tweet.getId() < minId)
-                    minId = tweet.getId();
-
-                tweetsProcessed++;
-
-                if (tweetsProcessed % 100 == 0) {
-                    System.out.println(tweetsProcessed);
+                    processAndSaveStatus(status);
+                } catch (TwitterException | InterruptedException e) {
+                    e.printStackTrace();
                 }
             }
-            query.setMaxId(minId - 1);
-            result = tweetSearchWithLimit(query);
-        }
+
+            @Override
+            public void onDeletionNotice(StatusDeletionNotice statusDeletionNotice) {
+
+            }
+
+            @Override
+            public void onTrackLimitationNotice(int i) {
+
+            }
+
+            @Override
+            public void onScrubGeo(long l, long l1) {
+
+            }
+
+            @Override
+            public void onStallWarning(StallWarning stallWarning) {
+
+            }
+        });
+
+        twitterStream.filter(query);
 
 
     }
 
-    private static void processAndSaveTweet(Status status) throws TwitterException, InterruptedException {
-        Tweet tweet = new Tweet(status);
+    private static void processAndSaveStatus(Status status) throws TwitterException, InterruptedException {
+        Tweet tweet = addStatusDataIfNotPresent(status);
 
-        TwitterUser twitterUser = saveUser(status);
-        tweet.setTwitterUser(twitterUser);
+        tweet = saveRetweetedTweetIfPresent(status, tweet);
+        tweet = saveQuotedStatusIfPresent(status, tweet);
+        tweet = saveInReplyToStatusIfPresent(status, tweet);
 
-        updateHashtags(status, tweet);
-        updateUserMentions(status, tweet);
-
-//        Iterable<Tweet> extraTweets = handleRetweetsAndQuotes(status, tweet);
-//        tweetRepository.save(extraTweets);
         tweetRepository.save(tweet);
     }
 
@@ -108,30 +123,25 @@ public class Main {
         if (twitterUser == null) {
             twitterUser = new TwitterUser(user);
 
-//            try {
-//                followStaff(twitterUser, "FOLLOWERS");
-//                followStaff(twitterUser, "FRIENDS");
-//
-//            } catch (TwitterException e) {
-//                e.printStackTrace();
-//            }
-
+            usersSaved++;
             twitterUser = twitterUserRepository.save(twitterUser);
         }
         return twitterUser;
     }
 
-    private static QueryResult tweetSearchWithLimit(Query query) throws InterruptedException {
-        QueryResult result;
-
+    private static Status getStatusWithLimit(long statusId) throws InterruptedException {
+        Status status = null;
         try {
-            result = twitter.search(query);
+            status = twitter.showStatus(statusId);
         } catch (TwitterException e) {
-            waitForLimitRenew(e);
-            result = tweetSearchWithLimit(query);
+            e.printStackTrace();
+            if(e.exceededRateLimitation()) {
+                waitForLimitRenew(e);
+                status = getStatusWithLimit(statusId);
+            }
         }
 
-        return result;
+        return status;
     }
 
     private static TwitterUser updateAndGetUser(UserMentionEntity userMentionEntity) throws TwitterException, InterruptedException {
@@ -150,8 +160,11 @@ public class Main {
         try {
             user = twitter.showUser(userId);
         } catch (TwitterException e) {
-            waitForLimitRenew(e);
-            user = getUserWithLimit(userId);
+            e.printStackTrace();
+            if(e.exceededRateLimitation()) {
+                waitForLimitRenew(e);
+                user = getUserWithLimit(userId);
+            }
         }
 
         return user;
@@ -159,7 +172,8 @@ public class Main {
 
     private static void waitForLimitRenew(TwitterException e) throws InterruptedException {
         int secondsUntilReset = e.getRateLimitStatus().getSecondsUntilReset() + 1;
-        System.out.println("Sleeping " + secondsUntilReset + " seconds...");
+        System.out.println("Sleeping " + secondsUntilReset / 60.0 + " minutes...");
+        totalWaitTime += secondsUntilReset / 60.0;
         Thread.sleep(secondsUntilReset * 1000);
     }
 
@@ -172,96 +186,61 @@ public class Main {
         return hashtag;
     }
 
-    public static void followStaff(TwitterUser twitterUser, String direction) throws TwitterException {
-        PagableResponseList<User> responseList;
-        if (direction.equals("FOLLOWERS")) {
-            responseList = twitter.getFollowersList(twitterUser.getId(), -1);
-        } else if (direction.equals("FRIENDS")) {
-            responseList = twitter.getFriendsList(twitterUser.getId(), -1);
-        } else {
-            return;
+    private static Tweet saveInReplyToStatusIfPresent(Status status, Tweet tweet) throws InterruptedException {
+        long inReplyToStatusId = status.getInReplyToStatusId();
+        Status inReplyToStatus = null;
+        if (inReplyToStatusId != -1) {
+            inReplyToStatus = getStatusWithLimit(inReplyToStatusId);
         }
 
-        for (User followU : responseList) {
-            TwitterUser followTU;
-            followTU = twitterUserRepository.findOne(followU.getId());
-            if (followTU == null) {
-                followTU = new TwitterUser(followU);
-                followTU = twitterUserRepository.save(followTU);
-            }
+        if (inReplyToStatus != null) {
+            Tweet inReplyToTweet = addStatusDataIfNotPresent(inReplyToStatus);
+            tweetRepository.save(inReplyToTweet);
 
-            if (direction.equals("FOLLOWERS")) {
-                twitterUser.addFollowedBy(followTU);
-                followTU.addFollowing(twitterUser);
-            } else {
-                followTU.addFollowedBy(twitterUser);
-                twitterUser.addFollowing(followTU);
-            }
-
-            twitterUserRepository.save(followTU);
+            tweet.setInReplyToTweet(inReplyToTweet);
         }
-//        twitterUserRepository.save(twitterUser);
+
+        return tweet;
     }
 
-    public static List<Status> findReplies(String screenName, long tweetId) throws TwitterException, InterruptedException {
-        Query query = new Query("to:" + screenName + " since_id:" + tweetId);
-        query.count(100);
-        QueryResult results = tweetSearchWithLimit(query);
-        List<Status> tweets = results.getTweets();
-
-        return tweets.stream()
-                .filter(tweet -> tweet.getInReplyToStatusId() == tweetId)
-                .collect(Collectors.toList());
-    }
-
-    public static Iterable<Tweet> handleRetweetsAndQuotes(Status status, Tweet mainTweet) throws InterruptedException, TwitterException {
-        Status reetweetedStatus = status.getRetweetedStatus();
+    private static Tweet saveQuotedStatusIfPresent(Status status, Tweet tweet) {
         Status quatedStatus = status.getQuotedStatus();
-
-        List<Tweet> extraTweets;
-        extraTweets = findReplies(status.getUser().getScreenName(), status.getId())
-                .stream()
-                .map(replyStatus -> {
-                    Tweet replyTweet = new Tweet(replyStatus);
-
-                    TwitterUser twitterUser = saveUser(replyStatus);
-                    replyTweet.setTwitterUser(twitterUser);
-
-                    updateHashtags(replyStatus, replyTweet);
-                    updateUserMentions(replyStatus, replyTweet);
-
-                    return replyTweet;
-                })
-                .peek(tweet -> tweet.setInReplyToTweet(mainTweet))
-                .collect(Collectors.toList());
-
-        if (reetweetedStatus != null) {
-            Tweet reetweetedTweet = new Tweet(reetweetedStatus);
-
-            TwitterUser twitterUser = saveUser(reetweetedStatus);
-            reetweetedTweet.setTwitterUser(twitterUser);
-
-            updateHashtags(reetweetedStatus, reetweetedTweet);
-            updateUserMentions(reetweetedStatus, reetweetedTweet);
-
-            mainTweet.setRetweetedTweet(reetweetedTweet);
-            extraTweets.add(reetweetedTweet);
-        }
         if (quatedStatus != null) {
-            Tweet quotedTweet = new Tweet(quatedStatus);
+            Tweet quotedTweet = addStatusDataIfNotPresent(quatedStatus);
+            tweetRepository.save(quotedTweet);
 
-            TwitterUser twitterUser = saveUser(quatedStatus);
-            quotedTweet.setTwitterUser(twitterUser);
-
-            updateHashtags(quatedStatus, quotedTweet);
-            updateUserMentions(quatedStatus, quotedTweet);
-
-            mainTweet.setQuotedTweet(quotedTweet);
-            extraTweets.add(quotedTweet);
+            tweet.setQuotedTweet(quotedTweet);
         }
-        extraTweets.add(mainTweet);
 
+        return tweet;
+    }
 
-        return extraTweets;
+    private static Tweet saveRetweetedTweetIfPresent(Status status, Tweet tweet) {
+        Status retweetedStatus = status.getRetweetedStatus();
+        if (retweetedStatus != null) {
+            Tweet retweetedTweet = addStatusDataIfNotPresent(retweetedStatus);
+            tweetRepository.save(retweetedTweet);
+
+            tweet.setRetweetedTweet(retweetedTweet);
+        }
+
+        return tweet;
+    }
+
+    private static Tweet addStatusDataIfNotPresent(Status status) {
+        Tweet tweet = tweetRepository.findOne(status.getId());
+        if (tweet == null) {
+            tweetsSaved++;
+
+            tweet = new Tweet(status);
+
+            TwitterUser twitterUser = saveUser(status);
+            tweet.setTwitterUser(twitterUser);
+
+            updateHashtags(status, tweet);
+            updateUserMentions(status, tweet);
+        }
+
+        return tweet;
     }
 }
