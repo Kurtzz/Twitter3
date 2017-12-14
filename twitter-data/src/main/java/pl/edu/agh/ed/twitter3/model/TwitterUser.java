@@ -169,4 +169,6 @@ public class TwitterUser {
     public void addFollowing(TwitterUser folowing) {
         this.following.add(folowing);
     }
+
+
 }

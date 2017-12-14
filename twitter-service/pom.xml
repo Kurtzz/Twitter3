@@ -28,5 +28,10 @@
             <artifactId>twitter4j-stream</artifactId>
             <version>${twitter.version}</version>
         </dependency>
+        <dependency>
+            <groupId>pl.edu.agh.ed.twitter3</groupId>
+            <artifactId>twitter-data</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
     </dependencies>
 </project>

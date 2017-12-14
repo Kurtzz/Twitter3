@@ -1,9 +1,11 @@
 package pl.edu.agh.ed.twitter3.model;
 
+import twitter4j.HashtagEntity;
 import twitter4j.Status;
 
 import javax.persistence.*;
-import java.util.Date;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Entity
 @Table(name = "TWEET")
@@ -30,9 +32,6 @@ public class Tweet {
     @Column(name = "RETWEET_COUNT")
     private int retweetCount;
 
-    @Column(name = "SOURCE")
-    private String source; //TODO: necessary?
-
     @ManyToOne(cascade = {CascadeType.PERSIST})
     @JoinColumn(name = "RETWEETED_TWEET_ID", referencedColumnName = "ID")
     private Tweet retweetedTweet;
@@ -45,19 +44,32 @@ public class Tweet {
     @JoinColumn(name = "IN_REPLY_TO_TWEET_ID", referencedColumnName = "ID")
     private Tweet inReplyToTweet;
 
+    @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(name = "TWEET_HASHTAGS",
+            joinColumns = @JoinColumn(name = "TWEET_ID", referencedColumnName = "ID"),
+            inverseJoinColumns = @JoinColumn(name = "HASHTAG_ID", referencedColumnName = "ID")
+    )
+    private Set<Hashtag> hashtags = new HashSet<>();
+
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST})
+    @JoinTable(name = "TWEET_USER_MENTIONS",
+            joinColumns = @JoinColumn(name = "TWEET_ID", referencedColumnName = "ID"),
+            inverseJoinColumns = @JoinColumn(name = "USER_ID", referencedColumnName = "ID")
+    )
+    private Set<TwitterUser> userMentions = new HashSet<>();
+
     public Tweet() {
     }
 
     public Tweet(Status status) {
         this.id = status.getId();
         this.text = status.getText();
-        this.twitterUser = new TwitterUser(status.getUser());
         this.createdAt = status.getCreatedAt();
         this.lang = status.getLang();
         this.favoriteCount = status.getFavoriteCount();
         this.retweetCount = status.getRetweetCount();
-        this.source = status.getSource();
     }
+
 
     public long getId() {
         return id;
@@ -115,14 +127,6 @@ public class Tweet {
         this.retweetCount = retweetCount;
     }
 
-    public String getSource() {
-        return source;
-    }
-
-    public void setSource(String source) {
-        this.source = source;
-    }
-
     public Tweet getRetweetedTweet() {
         return retweetedTweet;
     }
@@ -145,6 +149,22 @@ public class Tweet {
 
     public void setInReplyToTweet(Tweet inReplyToTweet) {
         this.inReplyToTweet = inReplyToTweet;
+    }
+
+    public Set<Hashtag> getHashtags() {
+        return hashtags;
+    }
+
+    public void setHashtags(Set<Hashtag> hashtags) {
+        this.hashtags = hashtags;
+    }
+
+    public Set<TwitterUser> getUserMentions() {
+        return userMentions;
+    }
+
+    public void setUserMentions(Set<TwitterUser> userMentions) {
+        this.userMentions = userMentions;
     }
 }
 
