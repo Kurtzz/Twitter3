@@ -17,10 +17,9 @@ public class Main {
     private static TweetRepository tweetRepository;
     private static HashtagRepository hashtagRepository;
 
-
-    static int tweetsSaved = 0;
-    static int usersSaved = 0;
-    static double totalWaitTime = 0.0;
+    private static int tweetsSaved = 0;
+    private static int usersSaved = 0;
+    private static double totalWaitTime = 0.0;
 
     private static long startTime = System.currentTimeMillis();
 
@@ -39,9 +38,7 @@ public class Main {
 
         twitterStream.addListener(new StatusListener() {
             @Override
-            public void onException(Exception e) {
-
-            }
+            public void onException(Exception e) {}
 
             public void onStatus(Status status) {
                 try {
@@ -61,24 +58,16 @@ public class Main {
             }
 
             @Override
-            public void onDeletionNotice(StatusDeletionNotice statusDeletionNotice) {
-
-            }
+            public void onDeletionNotice(StatusDeletionNotice statusDeletionNotice) {}
 
             @Override
-            public void onTrackLimitationNotice(int i) {
-
-            }
+            public void onTrackLimitationNotice(int i) {}
 
             @Override
-            public void onScrubGeo(long l, long l1) {
-
-            }
+            public void onScrubGeo(long l, long l1) {}
 
             @Override
-            public void onStallWarning(StallWarning stallWarning) {
-
-            }
+            public void onStallWarning(StallWarning stallWarning) {}
         });
 
         twitterStream.filter(query);

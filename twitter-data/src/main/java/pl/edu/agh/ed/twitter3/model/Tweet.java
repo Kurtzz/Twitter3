@@ -58,6 +58,9 @@ public class Tweet {
     )
     private Set<TwitterUser> userMentions = new HashSet<>();
 
+    @Column(name = "SENTIMENT")
+    private int sentiment;
+
     public Tweet() {
     }
 
@@ -165,6 +168,14 @@ public class Tweet {
 
     public void setUserMentions(Set<TwitterUser> userMentions) {
         this.userMentions = userMentions;
+    }
+
+    public int getSentiment() {
+        return sentiment;
+    }
+
+    public void setSentiment(int sentiment) {
+        this.sentiment = sentiment;
     }
 }
 
